@@ -1,0 +1,71 @@
+name: "(Reusable): Compute next version"
+
+on:
+  workflow_call:
+    inputs:
+      file_path:
+        description: 'Path to JSON file containing the current version (jq will read .version)'
+        required: false
+        type: string
+        default: package.json
+      ref_name:
+        description: 'Branch name (used to detect beta branches). If omitted, uses caller ref.'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  compute-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compute next version
+        id: version
+        run: |
+          set -euo pipefail
+          FILE_PATH="${{ inputs.file_path }}"
+          # Determine branch name: prefer input, else use github.ref_name
+          BRANCH_NAME="${{ inputs.ref_name }}"
+
+          CURR=""
+          if [ -f "$FILE_PATH" ]; then
+            CURR=$(jq -r .version "$FILE_PATH" 2>/dev/null || true)
+          fi
+
+          if [ -z "$CURR" ]; then
+            echo "::warning:: Could not determine current version from $FILE_PATH. Leaving version as 'next'."
+            VERSION="next"
+          else
+            # Handle beta branches
+            if [[ "$BRANCH_NAME" == *"beta"* ]]; then
+              if [[ $CURR =~ ^([0-9]+\.[0-9]+\.[0-9]+-beta\.)([0-9]+)$ ]]; then
+                BASE="${BASH_REMATCH[1]}"
+                BETA_NUM="${BASH_REMATCH[2]}"
+                NEW_BETA_NUM=$((BETA_NUM+1))
+                NEW_VERSION="${BASE}${NEW_BETA_NUM}"
+                echo "::notice::Incrementing beta version: $CURR -> $NEW_VERSION"
+                VERSION="$NEW_VERSION"
+              else
+                echo "::error::Branch contains 'beta' but version format is invalid: $CURR"
+                exit 1
+              fi
+            else
+              MAJOR=$(echo $CURR | cut -d. -f1)
+              MINOR=$(echo $CURR | cut -d. -f2)
+              PATCH=$(echo $CURR | cut -d. -f3)
+              NEW_PATCH=$((PATCH+1))
+              NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+              VERSION="$NEW_VERSION"
+            fi
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Version is empty. Failing job."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
