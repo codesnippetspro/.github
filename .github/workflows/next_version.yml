@@ -13,6 +13,10 @@ on:
         required: false
         type: string
         default: ''
+    outputs:
+      version:
+        description: 'Computed next version (e.g. 1.2.4 or 1.2.4-beta.1)'
+        value: ${{ jobs.compute-version.outputs.version }}
 
 jobs:
   compute-version:
