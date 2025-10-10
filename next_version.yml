@@ -1,4 +1,4 @@
-name: "(Reusable): Compute next version"
+name: "(Shared): Compute next version"
 
 on:
   workflow_call:
