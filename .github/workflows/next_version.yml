@@ -75,13 +75,25 @@ jobs:
               exit 1
             fi
           else
-            MAJOR=$(echo $CURR | cut -d. -f1)
-            MINOR=$(echo $CURR | cut -d. -f2)
-            PATCH=$(echo $CURR | cut -d. -f3)
-            NEW_PATCH=$((PATCH+1))
-            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-            echo "::notice::Incrementing version: $CURR -> $NEW_VERSION"
-            VERSION="$NEW_VERSION"
+            # On non-beta branches:
+            # - If current version is a beta (e.g., 1.2.3-beta or 1.2.3-beta.5), strip the beta suffix -> 1.2.3
+            # - If current version is a release (e.g., 1.2.3), bump patch -> 1.2.4
+            if [[ $CURR =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta(\.[0-9]+)?$ ]]; then
+              BASE="${BASH_REMATCH[1]}"
+              echo "::notice::Stripping beta suffix for non-beta branch: $CURR -> $BASE"
+              VERSION="$BASE"
+            elif [[ $CURR =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              MAJOR="${BASH_REMATCH[1]}"
+              MINOR="${BASH_REMATCH[2]}"
+              PATCH="${BASH_REMATCH[3]}"
+              NEW_PATCH=$((PATCH+1))
+              NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+              echo "::notice::Incrementing version: $CURR -> $NEW_VERSION"
+              VERSION="$NEW_VERSION"
+            else
+              echo "::error::Version format is invalid: $CURR"
+              exit 1
+            fi
           fi
 
           if [ -z "$VERSION" ]; then
